@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#8c4a2f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>내 독서 기록</title>
+<style>
+:root{--bg:#f6f1e9;--card:#fffdf9;--ink:#2b2622;--mute:#8a7f74;--line:#e6dccd;--accent:#8c4a2f;--star:#e0a526}
+@media (prefers-color-scheme:dark){:root{--bg:#1d1916;--card:#27211d;--ink:#f0e8dd;--mute:#a09384;--line:#3a322b;--accent:#d98a62;--star:#f0b94a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:20px 16px 100px}
+h1{font-size:24px;margin:8px 0 2px;font-family:Georgia,"Noto Serif KR",serif}
+.sub{color:var(--mute);font-size:14px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center}
+.stat b{display:block;font-size:22px;color:var(--accent)}
+.stat span{font-size:12px;color:var(--mute)}
+.bar{display:flex;gap:8px;margin-bottom:12px}
+input,select,textarea,button{font:inherit;color:inherit}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.bar select{width:auto}
+button{cursor:pointer;border:0;border-radius:10px;padding:10px 16px;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line)}
+button.small{padding:4px 10px;font-size:13px}
+.list{display:flex;flex-direction:column;gap:10px}
+.book{display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.cover{width:56px;height:80px;flex:none;border-radius:4px;object-fit:cover;background:var(--line)}
+.spine{width:56px;height:80px;flex:none;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;text-align:center;padding:4px;overflow:hidden}
+.info{flex:1;min-width:0}
+.t{font-weight:700;word-break:keep-all}
+.a{color:var(--mute);font-size:14px}
+.stars{color:var(--star);letter-spacing:1px}
+.note{font-size:14px;margin-top:6px;white-space:pre-wrap}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}
+.empty{text-align:center;color:var(--mute);padding:40px 0}
+.fabs{position:fixed;right:20px;bottom:24px;display:flex;flex-direction:column;gap:12px}
+.fab{width:56px;height:56px;border-radius:50%;font-size:26px;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.fab.alt{background:var(--card);color:var(--accent);border:1px solid var(--line)}
+dialog{border:0;border-radius:16px;padding:20px;width:min(92vw,440px);background:var(--card);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+.rate{display:flex;gap:4px;font-size:28px;cursor:pointer;color:var(--line);user-select:none}
+.rate .on{color:var(--star)}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.status{font-size:12px;color:var(--mute);text-align:center;margin-top:20px}
+video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:cover}
+.hint{font-size:13px;color:var(--mute);margin:8px 0}
+.isbnrow{display:flex;gap:8px}
+.isbnrow button{white-space:nowrap}
+.preview{display:flex;gap:10px;align-items:center;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📚 내 독서 기록</h1>
+  <div class="sub">바코드로 책을 찍어 읽은 책을 쌓아보세요</div>
+  <div class="stats">
+    <div class="stat"><b id="sTotal">0</b><span>읽은 책</span></div>
+    <div class="stat"><b id="sYear">0</b><span>올해</span></div>
+    <div class="stat"><b id="sAvg">-</b><span>평균 별점</span></div>
+  </div>
+  <div class="bar">
+    <input id="q" type="search" placeholder="제목·저자 검색">
+    <select id="sort">
+      <option value="date">최근 읽은 순</option>
+      <option value="rating">별점 높은 순</option>
+      <option value="title">제목 순</option>
+    </select>
+  </div>
+  <div id="list" class="list"></div>
+  <div class="status">
+    <button class="ghost small" id="export">백업 내보내기</button>
+    <button class="ghost small" id="import">불러오기</button>
+    <input id="importFile" type="file" accept="application/json" hidden>
+    <div id="status" style="margin-top:8px"></div>
+  </div>
+</div>
+<div class="fabs">
+  <button class="fab alt" id="scan" aria-label="바코드 스캔">📷</button>
+  <button class="fab" id="add" aria-label="책 추가">+</button>
+</div>
+
+<dialog id="scanDlg">
+  <h2 style="margin:0 0 8px;font-size:18px">바코드 스캔</h2>
+  <video id="video" playsinline muted></video>
+  <div class="hint" id="scanHint">책 뒷면의 바코드(978/979로 시작)를 화면에 맞춰주세요.</div>
+  <div class="actions"><button class="ghost" id="scanCancel">닫기</button></div>
+</dialog>
+
+<dialog id="dlg">
+  <form id="form">
+    <h2 id="dlgTitle" style="margin:0 0 4px;font-size:18px">책 추가</h2>
+    <label>ISBN</label>
+    <div class="isbnrow"><input id="fIsbn" inputmode="numeric" placeholder="바코드 숫자 13자리"><button type="button" class="ghost" id="lookup">정보 불러오기</button></div>
+    <div class="preview" id="preview"></div>
+    <label>제목 *</label><input id="fTitle" required>
+    <label>저자</label><input id="fAuthor">
+    <label>다 읽은 날</label><input id="fDate" type="date">
+    <label>별점</label><div class="rate" id="fRate"></div>
+    <label>한줄 감상</label><textarea id="fNote" rows="3"></textarea>
+    <div class="actions">
+      <button type="button" class="ghost" id="cancel">취소</button>
+      <button type="submit">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="vendor/zxing.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
