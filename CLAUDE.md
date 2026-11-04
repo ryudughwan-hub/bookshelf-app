@@ -22,7 +22,7 @@
 
 ## 배포
 - GitHub Pages: https://ryudughwan-hub.github.io/bookshelf-app/ (저장소 `ryudughwan-hub/bookshelf-app`, `main` 브랜치 루트). push하면 1~2분 뒤 반영.
-- 알라딘 Worker: Cloudflare 대시보드에서 수동 배포(`worker/aladin-proxy.js` 붙여넣기).
+- 알라딘 Worker: `https://bookshelf-aladin.ryudughwan.workers.dev` — Cloudflare 대시보드에서 수동 배포(`worker/aladin-proxy.js` 붙여넣기). 코드 수정 시 대시보드에 다시 붙여넣어야 함. 개발 환경에서는 workers.dev 접속 불가.
 
 ## 실행
 ```
@@ -36,7 +36,7 @@ python3 -m http.server 8000   # http://localhost:8000
 ```
 
 ## 다음 할 일 (우선순위 순)
-1. 알라딘 Worker 배포(사용자가 Cloudflare에서 진행) → `ALADIN_PROXY`에 주소 설정 → 폰에서 실제 조회 확인.
+1. 폰에서 알라딘 조회 확인. Worker는 배포됨(`https://bookshelf-aladin.ryudughwan.workers.dev`, 사용자가 브라우저로 정상 응답 확인), `ALADIN_PROXY`에 설정함.
 2. 폰 실기기 검증: 카메라 스캔, 홈 화면 추가(PWA)·아이콘.
 3. 기기 간 동기화가 필요하면 백엔드(예: Supabase/Firebase) 검토. 지금은 JSON 백업으로 옮김.
 4. 선택: "읽고 싶은 책 / 읽는 중" 상태, 독서 메모·인상 깊은 구절, 책장 시각화.

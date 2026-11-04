@@ -5,7 +5,7 @@
   // Google Cloud 콘솔에서 발급하고, "HTTP 리퍼러" 제한을 이 사이트 주소로 걸어 둘 것.
   var GOOGLE_BOOKS_KEY = "";
   // 알라딘 조회 중계(Cloudflare Worker) 주소. worker/README.md 참고. 비워 두면 알라딘은 건너뜀.
-  var ALADIN_PROXY = "";
+  var ALADIN_PROXY = "https://bookshelf-aladin.ryudughwan.workers.dev";
   var books = [], editingId = null, rating = 0, cover = "";
   var $ = function (id) { return document.getElementById(id); };
   var COLORS = ["#8c4a2f", "#3f6b5e", "#44546a", "#a0522d", "#6b4a7a", "#b5763a", "#2f5d62"];
