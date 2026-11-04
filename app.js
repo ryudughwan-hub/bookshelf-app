@@ -1,6 +1,9 @@
 (function () {
   "use strict";
   var LS = "bookshelf.books.v1";
+  // Google Books API 키(선택). 키 없이 쓰면 전 세계 공용 한도를 같이 써서 자주 429(한도 초과)가 난다.
+  // Google Cloud 콘솔에서 발급하고, "HTTP 리퍼러" 제한을 이 사이트 주소로 걸어 둘 것.
+  var GOOGLE_BOOKS_KEY = "";
   var books = [], editingId = null, rating = 0, cover = "";
   var $ = function (id) { return document.getElementById(id); };
   var COLORS = ["#8c4a2f", "#3f6b5e", "#44546a", "#a0522d", "#6b4a7a", "#b5763a", "#2f5d62"];
@@ -31,23 +34,34 @@
     try { var r = await fetch(url, { signal: c.signal }); if (!r.ok) throw new Error(r.status); return await r.json(); }
     finally { clearTimeout(t); }
   }
+  function why(e) {
+    var m = String(e && e.message || e);
+    if (m === "429") return "조회 한도 초과";
+    if (/^\d{3}$/.test(m)) return "오류 " + m;
+    if (e && e.name === "AbortError") return "응답 시간 초과";
+    return "접속 실패";
+  }
+  // 성공하면 {title, author, cover}, 실패하면 {fail: "소스별 실패 이유"}
   async function lookupIsbn(isbn) {
+    var fails = [];
     // 1) Google Books
     try {
-      var g = await fetchJson("https://www.googleapis.com/books/v1/volumes?q=isbn:" + isbn + "&maxResults=1");
-      if (g.items && g.items.length) {
+      var g = await fetchJson("https://www.googleapis.com/books/v1/volumes?q=isbn:" + isbn + "&maxResults=1" + (GOOGLE_BOOKS_KEY ? "&key=" + GOOGLE_BOOKS_KEY : ""));
+      if (!(g.items && g.items.length)) fails.push("Google: 결과 없음");
+      else {
         var v = g.items[0].volumeInfo || {};
         var img = (v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)) || "";
         return { title: v.title ? (v.title + (v.subtitle ? ": " + v.subtitle : "")) : "", author: (v.authors || []).join(", "), cover: img.replace(/^http:/, "https:") };
       }
-    } catch (e) { /* 다음 소스로 */ }
+    } catch (e) { fails.push("Google: " + why(e)); }
     // 2) Open Library
     try {
       var o = await fetchJson("https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&format=json&jscmd=data");
       var b = o["ISBN:" + isbn];
       if (b) return { title: b.title || "", author: (b.authors || []).map(function (a) { return a.name; }).join(", "), cover: (b.cover && (b.cover.medium || b.cover.small)) || "" };
-    } catch (e) { /* 실패 */ }
-    return null;
+      fails.push("Open Library: 결과 없음");
+    } catch (e) { fails.push("Open Library: " + why(e)); }
+    return { fail: fails.join(", ") };
   }
 
   async function doLookup(isbn) {
@@ -56,7 +70,7 @@
     $("fIsbn").value = isbn;
     setPreview("불러오는 중…");
     var info = await lookupIsbn(isbn);
-    if (!info || !info.title) { setPreview("정보를 찾지 못했어요. 제목과 저자를 직접 입력해주세요."); return false; }
+    if (!info.title) { setPreview("정보를 찾지 못했어요. 제목과 저자를 직접 입력해주세요. (" + (info.fail || "제목 없음") + ")"); return false; }
     if (!$("fTitle").value.trim()) $("fTitle").value = info.title;
     if (!$("fAuthor").value.trim()) $("fAuthor").value = info.author;
     cover = info.cover || cover;
