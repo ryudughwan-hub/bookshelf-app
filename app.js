@@ -4,8 +4,8 @@
   // Google Books API 키(선택). 키 없이 쓰면 전 세계 공용 한도를 같이 써서 자주 429(한도 초과)가 난다.
   // Google Cloud 콘솔에서 발급하고, "HTTP 리퍼러" 제한을 이 사이트 주소로 걸어 둘 것.
   var GOOGLE_BOOKS_KEY = "";
-  // 알라딘 조회 중계(Cloudflare Worker) 주소. worker/README.md 참고. 비워 두면 알라딘은 건너뜀.
-  var ALADIN_PROXY = "https://bookshelf-aladin.ryudughwan.workers.dev";
+  // 도서 조회 중계(Cloudflare Worker, 카카오 책 검색) 주소. worker/README.md 참고. 비워 두면 건너뜀.
+  var BOOK_PROXY = "https://bookshelf-aladin.ryudughwan.workers.dev";
   var books = [], editingId = null, rating = 0, cover = "";
   var $ = function (id) { return document.getElementById(id); };
   var COLORS = ["#8c4a2f", "#3f6b5e", "#44546a", "#a0522d", "#6b4a7a", "#b5763a", "#2f5d62"];
@@ -46,13 +46,13 @@
   // 성공하면 {title, author, cover}, 실패하면 {fail: "소스별 실패 이유"}
   async function lookupIsbn(isbn) {
     var fails = [];
-    // 1) 알라딘(중계 서버 경유) — 한국 도서에 가장 정확
-    if (ALADIN_PROXY) {
+    // 1) 카카오 책 검색(중계 서버 경유) — 한국 도서에 가장 정확
+    if (BOOK_PROXY) {
       try {
-        var a = await fetchJson(ALADIN_PROXY.replace(/\/$/, "") + "/?isbn=" + isbn);
+        var a = await fetchJson(BOOK_PROXY.replace(/\/$/, "") + "/?isbn=" + isbn);
         if (a.title) return { title: a.title, author: a.author || "", cover: a.cover || "" };
-        fails.push("알라딘: 결과 없음");
-      } catch (e) { fails.push("알라딘: " + (String(e && e.message) === "404" ? "결과 없음" : why(e))); }
+        fails.push("카카오: 결과 없음");
+      } catch (e) { fails.push("카카오: " + (String(e && e.message) === "404" ? "결과 없음" : why(e))); }
     }
     // 2) Google Books
     try {
