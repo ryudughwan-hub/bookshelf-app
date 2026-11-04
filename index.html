@@ -53,6 +53,9 @@ video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:
 .isbnrow{display:flex;gap:8px}
 .isbnrow button{white-space:nowrap}
 .preview{display:flex;gap:10px;align-items:center;margin-top:8px}
+#syncBox{margin-top:12px;line-height:2}
+#syncBox.err span{color:#c0392b}
+#authMsg{font-size:13px;color:var(--mute);margin-top:8px;min-height:1em}
 </style>
 </head>
 <body>
@@ -78,6 +81,7 @@ video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:
     <button class="ghost small" id="import">불러오기</button>
     <input id="importFile" type="file" accept="application/json" hidden>
     <div id="status" style="margin-top:8px"></div>
+    <div id="syncBox" hidden></div>
     <div style="margin-top:12px">도서 정보: <a href="https://search.daum.net" target="_blank" rel="noopener" style="color:inherit">Daum 책 검색</a></div>
   </div>
 </div>
@@ -111,7 +115,23 @@ video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:
   </form>
 </dialog>
 
+<dialog id="authDlg">
+  <form id="authForm">
+    <h2 style="margin:0 0 4px;font-size:18px">기기 간 동기화</h2>
+    <div class="hint">같은 계정으로 로그인한 폰·PC에서 같은 기록을 볼 수 있어요. 이 기기의 기존 기록도 함께 올라가요.</div>
+    <label>이메일</label><input id="aEmail" type="email" autocomplete="username" required>
+    <label>비밀번호 (6자 이상)</label><input id="aPw" type="password" autocomplete="current-password" minlength="6" required>
+    <div id="authMsg"></div>
+    <div class="actions">
+      <button type="button" class="ghost" id="aCancel">닫기</button>
+      <button type="button" class="ghost" id="aSignup">처음이에요(가입)</button>
+      <button type="submit">로그인</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="vendor/zxing.min.js"></script>
+<script src="sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

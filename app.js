@@ -6,6 +6,10 @@
   var GOOGLE_BOOKS_KEY = "";
   // 도서 조회 중계(Cloudflare Worker, 카카오 책 검색) 주소. worker/README.md 참고. 비워 두면 건너뜀.
   var BOOK_PROXY = "https://bookshelf-aladin.ryudughwan.workers.dev";
+  // 기기 간 동기화(Supabase). supabase/README.md 참고. 둘 다 비워 두면 동기화 기능을 숨김.
+  // KEY는 공개용(anon/publishable) 키 — 노출돼도 되며, 데이터는 행 단위 보안(RLS)으로 본인 것만 접근 가능.
+  var SUPABASE_URL = "";
+  var SUPABASE_KEY = "";
   var books = [], editingId = null, rating = 0, cover = "";
   var $ = function (id) { return document.getElementById(id); };
   var COLORS = ["#8c4a2f", "#3f6b5e", "#44546a", "#a0522d", "#6b4a7a", "#b5763a", "#2f5d62"];
@@ -15,7 +19,9 @@
   function color(t) { var h = 0; for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; return COLORS[h % COLORS.length]; }
   function setStatus(m) { $("status").textContent = m || ""; }
   function load() { try { books = JSON.parse(localStorage.getItem(LS) || "[]"); } catch (e) { books = []; } }
-  function save() { try { localStorage.setItem(LS, JSON.stringify(books)); } catch (e) { setStatus("저장에 실패했어요. 저장 공간을 확인해주세요."); } }
+  function store() { try { localStorage.setItem(LS, JSON.stringify(books)); } catch (e) { setStatus("저장에 실패했어요. 저장 공간을 확인해주세요."); } }
+  function save() { store(); if (sync) sync.schedule(); }
+  var sync = null; // 아래에서 BookSync로 초기화
 
   // ---------- ISBN ----------
   function cleanIsbn(s) { return String(s || "").replace(/[^0-9Xx]/g, "").toUpperCase(); }
@@ -143,7 +149,7 @@
     e.preventDefault();
     var t = $("fTitle").value.trim(); if (!t) return;
     var isbn = cleanIsbn($("fIsbn").value);
-    var item = { title: t, author: $("fAuthor").value.trim(), isbn: isbn, cover: cover, date: $("fDate").value, rating: rating, note: $("fNote").value.trim() };
+    var item = { title: t, author: $("fAuthor").value.trim(), isbn: isbn, cover: cover, date: $("fDate").value, rating: rating, note: $("fNote").value.trim(), updated: Date.now() };
     if (!editingId && isbn && books.some(function (b) { return b.isbn === isbn; }) && !confirm("이미 기록한 책이에요. 또 추가할까요?")) return;
     if (editingId) books = books.map(function (b) { return b.id === editingId ? Object.assign({}, b, item) : b; });
     else { item.id = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); item.added = Date.now(); books.push(item); }
@@ -153,7 +159,7 @@
     var d = e.target.getAttribute("data-d"), ed = e.target.getAttribute("data-e");
     if (ed) openForm(books.filter(function (b) { return b.id === ed; })[0]);
     if (d) {
-      if (e.target.getAttribute("data-c")) { books = books.filter(function (b) { return b.id !== d; }); save(); render(); }
+      if (e.target.getAttribute("data-c")) { books = books.filter(function (b) { return b.id !== d; }); if (sync) sync.markDeleted(d); save(); render(); }
       else { var el = e.target; el.textContent = "정말?"; el.setAttribute("data-c", "1"); setTimeout(function () { el.textContent = "삭제"; el.removeAttribute("data-c"); }, 2500); }
     }
   });
@@ -217,7 +223,8 @@
       cover: /^https?:\/\//i.test(cover) ? cover : "",
       date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
       rating: Math.min(5, Math.max(0, rating)), note: str(b.note),
-      added: isFinite(added) && added > 0 ? added : Date.now()
+      added: isFinite(added) && added > 0 ? added : Date.now(),
+      updated: Date.now() // 불러온 시점을 수정 시각으로(다른 기기에도 전파되도록)
     };
   }
   $("export").onclick = function () {
@@ -246,6 +253,48 @@
     rd.readAsText(f); this.value = "";
   });
 
-  load(); render();
+  // ---------- 동기화 ----------
+  sync = window.BookSync ? window.BookSync({
+    url: SUPABASE_URL, key: SUPABASE_KEY,
+    getBooks: function () { return books; },
+    setBooks: function (arr) { books = arr; store(); render(); },
+    onStatus: renderSync
+  }) : null;
+  function hhmm(ms) { var d = new Date(ms); return d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  function renderSync() {
+    var el = $("syncBox");
+    if (!sync || !sync.enabled) { el.hidden = true; return; }
+    el.hidden = false;
+    var st = sync.state, u = sync.user(), msg;
+    if (!u) msg = '<span>기기 간 동기화가 꺼져 있어요</span> <button class="ghost small" id="syncLogin">로그인</button>';
+    else msg = "<span>☁️ " + esc(u) + " · " + esc(st.msg || (st.last ? "동기화됨 " + hhmm(st.last) : "동기화 대기")) + "</span> " +
+      '<button class="ghost small" id="syncNow">지금 동기화</button> <button class="ghost small" id="syncOut">로그아웃</button>';
+    el.innerHTML = msg;
+    el.className = st.error ? "err" : "";
+    if (!u && st.msg) el.insertAdjacentHTML("beforeend", '<div>' + esc(st.msg) + "</div>");
+  }
+  $("syncBox").addEventListener("click", function (e) {
+    var id = e.target.id;
+    if (id === "syncLogin") { $("authMsg").textContent = ""; $("authDlg").showModal(); }
+    if (id === "syncNow") sync.syncNow();
+    if (id === "syncOut" && confirm("로그아웃할까요? 이 기기의 기록은 지워지지 않아요.")) { sync.signOut(); }
+  });
+  async function auth(kind) {
+    var email = $("aEmail").value.trim(), pw = $("aPw").value;
+    if (!email || !pw) { $("authMsg").textContent = "이메일과 비밀번호를 입력해주세요."; return; }
+    $("authMsg").textContent = kind === "in" ? "로그인 중…" : "가입 중…";
+    try {
+      var ok = kind === "in" ? await sync.signIn(email, pw) : await sync.signUp(email, pw);
+      if (ok) { $("aPw").value = ""; $("authDlg").close(); }
+      else $("authMsg").textContent = "확인 메일을 보냈어요. 메일의 링크를 누른 뒤 여기서 로그인해주세요.";
+    } catch (e) { $("authMsg").textContent = e.message; }
+    renderSync();
+  }
+  $("authForm").addEventListener("submit", function (e) { e.preventDefault(); auth("in"); });
+  $("aSignup").onclick = function () { auth("up"); };
+  $("aCancel").onclick = function () { $("authDlg").close(); };
+
+  load(); render(); renderSync();
+  if (sync && sync.user()) sync.schedule(0);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 })();
