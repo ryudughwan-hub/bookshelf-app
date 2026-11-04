@@ -100,10 +100,21 @@
   }
 
   // ---------- 렌더 ----------
+  // 요약·좋은 구절: 길 수 있어 접어서 표시. 구절은 빈 줄로 구분
+  function splitQuotes(s) { return String(s || "").split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  function noteHtml(b) {
+    var qs = splitQuotes(b.quotes);
+    if (!b.summary && !qs.length) return "";
+    var label = ["📖 노트"].concat(b.summary ? ["요약 " + b.summary.length.toLocaleString() + "자"] : [], qs.length ? ["구절 " + qs.length + "개"] : []).join(" · ");
+    return '<details class="memo"><summary>' + esc(label) + "</summary>" +
+      (b.summary ? '<h4>요약</h4><div class="sum">' + esc(b.summary) + "</div>" : "") +
+      (qs.length ? "<h4>좋은 구절</h4>" + qs.map(function (x) { return "<blockquote>" + esc(x) + "</blockquote>"; }).join("") : "") +
+      "</details>";
+  }
   function stars(n) { return "★".repeat(n) + "☆".repeat(5 - n); }
   function render() {
     var q = $("q").value.trim().toLowerCase(), s = $("sort").value;
-    var arr = books.filter(function (b) { return !q || (b.title + " " + (b.author || "")).toLowerCase().indexOf(q) >= 0; });
+    var arr = books.filter(function (b) { return !q || [b.title, b.author, b.note, b.summary, b.quotes].join(" ").toLowerCase().indexOf(q) >= 0; });
     arr.sort(function (a, b) {
       if (s === "rating") return (b.rating || 0) - (a.rating || 0) || (b.date || "").localeCompare(a.date || "");
       if (s === "title") return a.title.localeCompare(b.title, "ko");
@@ -114,7 +125,7 @@
       return '<div class="book">' + thumb + '<div class="info"><div class="t">' + esc(b.title) + "</div>" +
         (b.author ? '<div class="a">' + esc(b.author) + "</div>" : "") +
         (b.rating ? '<div class="stars">' + stars(b.rating) + "</div>" : "") +
-        (b.note ? '<div class="note">' + esc(b.note) + "</div>" : "") +
+        (b.note ? '<div class="note">' + esc(b.note) + "</div>" : "") + noteHtml(b) +
         '<div class="meta"><span>' + esc(b.date || "") + "</span><span>" +
         '<button class="ghost small" data-e="' + b.id + '">수정</button> ' +
         '<button class="ghost small" data-d="' + b.id + '">삭제</button></span></div></div></div>';
@@ -137,11 +148,40 @@
     $("fAuthor").value = b ? b.author || "" : "";
     $("fDate").value = b ? b.date || "" : today();
     $("fNote").value = b ? b.note || "" : "";
+    $("fSummary").value = b ? b.summary || "" : "";
+    $("fQuotes").value = b ? b.quotes || "" : "";
     cover = b ? b.cover || "" : "";
     rating = b ? b.rating || 0 : 0; drawRate();
     setPreview("");
+    // 저장하지 않고 닫았던 작성 내용이 있으면 이어 쓰기(스캔으로 연 새 책 창은 제외)
+    var dr = readDraft();
+    if (dr && dr.id === editingId && !(!b && isbn)) {
+      if (confirm("저장하지 않은 작성 내용이 있어요(" + new Date(dr.at).toLocaleString() + "). 이어서 쓸까요?")) {
+        DRAFT_FIELDS.forEach(function (k) { if (dr.f[k] != null) $(k).value = dr.f[k]; });
+        rating = dr.rating || 0; drawRate(); cover = dr.cover || cover; setPreview("");
+      } else clearDraft();
+    }
     if (!$("dlg").open) $("dlg").showModal();
+    growAll();
   }
+  // ---------- 임시 저장(긴 글 보호) ----------
+  var DRAFT = "bookshelf.draft.v1", DRAFT_FIELDS = ["fIsbn", "fTitle", "fAuthor", "fDate", "fNote", "fSummary", "fQuotes"], draftTimer = null;
+  function readDraft() { try { return JSON.parse(localStorage.getItem(DRAFT) || "null"); } catch (e) { return null; } }
+  function clearDraft() { clearTimeout(draftTimer); try { localStorage.removeItem(DRAFT); } catch (e) {} }
+  function saveDraft() {
+    var f = {}; DRAFT_FIELDS.forEach(function (k) { f[k] = $(k).value; });
+    try { localStorage.setItem(DRAFT, JSON.stringify({ id: editingId, f: f, rating: rating, cover: cover, at: Date.now() })); } catch (e) {}
+    $("draftMsg").textContent = "임시 저장됨 " + new Date().toLocaleTimeString();
+  }
+  $("form").addEventListener("input", function (e) {
+    if (e.target.tagName === "TEXTAREA") grow(e.target);
+    clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 700);
+  });
+  // 입력칸이 글 길이에 맞게 늘어남
+  function grow(t) { t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; }
+  function growAll() { $("draftMsg").textContent = ""; ["fNote", "fSummary", "fQuotes"].forEach(function (k) { grow($(k)); }); }
+  // PC: Ctrl(⌘)+Enter로 저장
+  $("form").addEventListener("keydown", function (e) { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $("form").requestSubmit(); } });
   $("add").onclick = function () { openForm(null); };
   $("cancel").onclick = function () { $("dlg").close(); };
   $("lookup").onclick = function () { doLookup($("fIsbn").value); };
@@ -149,11 +189,12 @@
     e.preventDefault();
     var t = $("fTitle").value.trim(); if (!t) return;
     var isbn = cleanIsbn($("fIsbn").value);
-    var item = { title: t, author: $("fAuthor").value.trim(), isbn: isbn, cover: cover, date: $("fDate").value, rating: rating, note: $("fNote").value.trim(), updated: Date.now() };
+    var item = { title: t, author: $("fAuthor").value.trim(), isbn: isbn, cover: cover, date: $("fDate").value, rating: rating, note: $("fNote").value.trim(),
+      summary: $("fSummary").value.trim(), quotes: $("fQuotes").value.trim(), updated: Date.now() };
     if (!editingId && isbn && books.some(function (b) { return b.isbn === isbn; }) && !confirm("이미 기록한 책이에요. 또 추가할까요?")) return;
     if (editingId) books = books.map(function (b) { return b.id === editingId ? Object.assign({}, b, item) : b; });
     else { item.id = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); item.added = Date.now(); books.push(item); }
-    $("dlg").close(); save(); render();
+    clearDraft(); $("dlg").close(); save(); render();
   });
   $("list").addEventListener("click", function (e) {
     var d = e.target.getAttribute("data-d"), ed = e.target.getAttribute("data-e");
@@ -222,7 +263,7 @@
       id: id, title: title, author: str(b.author), isbn: cleanIsbn(str(b.isbn)),
       cover: /^https?:\/\//i.test(cover) ? cover : "",
       date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "",
-      rating: Math.min(5, Math.max(0, rating)), note: str(b.note),
+      rating: Math.min(5, Math.max(0, rating)), note: str(b.note), summary: str(b.summary), quotes: str(b.quotes),
       added: isFinite(added) && added > 0 ? added : Date.now(),
       updated: Date.now() // 불러온 시점을 수정 시각으로(다른 기기에도 전파되도록)
     };

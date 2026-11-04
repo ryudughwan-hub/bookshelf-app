@@ -55,6 +55,15 @@ video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:
 .preview{display:flex;gap:10px;align-items:center;margin-top:8px}
 #syncBox{margin-top:12px;line-height:2}
 #syncBox.err span{color:#c0392b}
+textarea{resize:vertical;line-height:1.6;overflow:hidden}
+#dlg .actions{position:sticky;bottom:-20px;background:var(--card);padding:10px 0 4px;margin-bottom:-4px;align-items:center}
+#draftMsg{flex:1;font-size:12px;color:var(--mute)}
+@media (min-width:800px){#dlg{width:min(94vw,860px)}#dlg textarea{font-size:16px}}
+.memo{margin-top:8px;font-size:14px}
+.memo summary{cursor:pointer;color:var(--accent);font-weight:600}
+.memo h4{margin:10px 0 4px;font-size:13px;color:var(--mute)}
+.memo .sum{white-space:pre-wrap;line-height:1.7}
+.memo blockquote{margin:6px 0;padding:6px 10px;border-left:3px solid var(--star);background:var(--bg);white-space:pre-wrap;line-height:1.7;border-radius:0 6px 6px 0}
 #authMsg{font-size:13px;color:var(--mute);margin-top:8px;min-height:1em}
 </style>
 </head>
@@ -68,7 +77,7 @@ video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:
     <div class="stat"><b id="sAvg">-</b><span>평균 별점</span></div>
   </div>
   <div class="bar">
-    <input id="q" type="search" placeholder="제목·저자 검색">
+    <input id="q" type="search" placeholder="제목·저자·메모 검색">
     <select id="sort">
       <option value="date">최근 읽은 순</option>
       <option value="rating">별점 높은 순</option>
@@ -107,9 +116,12 @@ video{width:100%;border-radius:12px;background:#000;aspect-ratio:4/3;object-fit:
     <label>저자</label><input id="fAuthor">
     <label>다 읽은 날</label><input id="fDate" type="date">
     <label>별점</label><div class="rate" id="fRate"></div>
-    <label>한줄 감상</label><textarea id="fNote" rows="3"></textarea>
+    <label>한줄 감상</label><textarea id="fNote" rows="2"></textarea>
+    <label>요약</label><textarea id="fSummary" rows="6" placeholder="책 내용을 정리해보세요. 길게 써도 돼요."></textarea>
+    <label>좋은 구절</label><textarea id="fQuotes" rows="6" placeholder="구절마다 빈 줄로 구분해주세요.&#10;&#10;예) p.123 기억에 남는 문장…&#10;&#10;p.200 다른 문장…"></textarea>
     <div class="actions">
-      <button type="button" class="ghost" id="cancel">취소</button>
+      <span id="draftMsg"></span>
+      <button type="button" class="ghost" id="cancel">닫기</button>
       <button type="submit">저장</button>
     </div>
   </form>

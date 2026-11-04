@@ -4,19 +4,21 @@
 
 ## 현재 상태
 - 빌드 도구·프레임워크 없는 정적 사이트. `index.html`, `app.js`, `sync.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`(+ PNG `icon-180/192/512.png`, SVG에서 렌더), `vendor/zxing.min.js`(@zxing/library 0.21.3 UMD).
-- 기능: 책 추가/수정/삭제, 별점(1~5), 한줄 감상, 다 읽은 날, 검색, 정렬(최근/별점/제목), 통계(총 권수·올해·평균 별점), JSON 백업 내보내기/불러오기(불러올 때 항목을 데이터 모델에 맞게 정리, 형식 불량·중복은 건너뜀), 중복 ISBN 경고.
+- 기능: 책 추가/수정/삭제, 별점(1~5), 한줄 감상, 요약·좋은 구절(긴 글, A4 1장 이상 가정), 다 읽은 날, 검색(제목·저자·메모 전체), 정렬(최근/별점/제목), 통계(총 권수·올해·평균 별점), JSON 백업 내보내기/불러오기(불러올 때 항목을 데이터 모델에 맞게 정리, 형식 불량·중복은 건너뜀), 중복 ISBN 경고.
 - 저장: `localStorage` 키 `bookshelf.books.v1`. 선택적으로 Supabase 동기화(`sync.js`, 설정 절차 `supabase/README.md`, 테이블 `supabase/schema.sql`).
   - `app.js` 상단 `SUPABASE_URL`/`SUPABASE_KEY`(공개 키). 비어 있으면 동기화 UI 숨김.
   - 라이브러리 없이 Auth(`/auth/v1`)·PostgREST(`/rest/v1/books`) 직접 호출. 이메일+비밀번호 로그인(매직 링크는 iOS 홈 화면 앱이 아닌 사파리로 열려 부적합).
   - 병합: 책 단위 `updated`(ms) 큰 쪽 승. 삭제는 로컬 `bookshelf.deleted.v1`(삭제 기록) → 서버 `deleted=true` 행. 매 동기화마다 전체를 받아 비교(1000행씩 페이지).
   - 기타 localStorage 키: `bookshelf.auth.v1`(세션), `bookshelf.lastsync.v1`.
+- 긴 글 편집: PC(폭 800px 이상)에서 편집 창 860px, 입력칸 자동 높이, 저장 버튼 줄 고정, Ctrl/⌘+Enter 저장. 입력 0.7초 뒤 `bookshelf.draft.v1`에 임시 저장 → 저장 안 하고 닫아도 다음에 열 때 이어 쓰기 확인(스캔으로 연 새 책 창은 제외). 목록에서는 `<details>`로 접어서 표시, 구절은 빈 줄로 구분.
+  - 용량 주의: localStorage는 기기당 약 5MB. 책마다 A4 1~2장이면 수백 권까지는 여유, 1000권 이상이면 IndexedDB 이전 검토.
 - 스캔: `BarcodeDetector`가 있으면 사용, 없으면 ZXing으로 폴백. 978/979로 시작하는 유효 ISBN만 인식.
 - 도서 조회: 카카오 책 검색(Cloudflare Worker 중계, `worker/book-proxy.js`) → Google Books(`isbn:` 검색) → Open Library 순서. 실패 시 소스별 이유를 미리보기에 표시.
   - `app.js` 상단 설정: `BOOK_PROXY`(Worker 주소, 비면 건너뜀), `GOOGLE_BOOKS_KEY`(선택).
   - 키 없는 Google Books는 전 세계 공용 일일 한도라 자주 429. 실제로 이 때문에 폰에서 조회가 전부 실패했음(2026-11-04).
   - 카카오 REST API 키는 Worker의 Secret `KAKAO_REST_KEY`에만 둔다. 설치 절차: `worker/README.md`.
   - 알라딘 OpenAPI는 2026-10-30 종료(신규 발급은 9월 중단). 네이버 책 검색 API도 2026년 중 종료됐다는 보고가 있어 제외. 대안 후보: 국립중앙도서관 ISBN 서지정보(seoji) API(키 승인 필요).
-- 서비스 워커: 같은 출처 GET 요청만 network-first로 캐시(성공 응답만 저장). 외부 API·표지 이미지는 캐시하지 않음. 캐시 파일 목록이 바뀌면 `CACHE` 버전(현재 `bookshelf-v3`)을 올릴 것.
+- 서비스 워커: 같은 출처 GET 요청만 network-first로 캐시(성공 응답만 저장). 외부 API·표지 이미지는 캐시하지 않음. 캐시 파일 목록이 바뀌면 `CACHE` 버전(현재 `bookshelf-v4`)을 올릴 것.
 - 아이콘: iOS용 `apple-touch-icon`(180px PNG), 매니페스트에 192/512 PNG(any, maskable) + SVG. 아이콘 그림은 maskable 안전 영역(중앙 지름 80%) 안에 들어가게 축소함. `icon.svg`를 바꾸면 PNG도 다시 만들 것.
 
 ## 검증 상태 (중요)
@@ -38,13 +40,13 @@ python3 -m http.server 8000   # http://localhost:8000
 
 ## 데이터 모델
 ```
-{ id, title, author, isbn, cover, date(YYYY-MM-DD), rating(0~5), note, added(ms), updated(ms, 마지막 수정) }
+{ id, title, author, isbn, cover, date(YYYY-MM-DD), rating(0~5), note(한줄 감상), summary(요약), quotes(좋은 구절, 빈 줄로 구분), added(ms), updated(ms, 마지막 수정) }
 ```
 
 ## 다음 할 일 (우선순위 순)
 1. 홈 화면 추가(PWA)·아이콘 표시 확인(아직 보고 없음).
 2. 사용자가 Supabase 프로젝트 생성(`supabase/README.md`) → `SUPABASE_URL`/`SUPABASE_KEY` 설정 → 실제 동기화 확인 → 새 가입 막기.
-3. 선택: "읽고 싶은 책 / 읽는 중" 상태, 독서 메모·인상 깊은 구절, 책장 시각화.
+3. 선택: "읽고 싶은 책 / 읽는 중" 상태, 책장 시각화.
 
 ## 결정 사항·주의
 - 사용자는 PC에서 코드 작업·배포를 하고, 기록과 스캔은 폰에서 할 계획.
